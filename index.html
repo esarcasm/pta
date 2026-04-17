@@ -64,23 +64,33 @@
     margin: -30px 0 0 -30px; border-radius: 50%;
     background: rgba(0,240,255,0.5); border: 2px solid #00f0ff;
     box-shadow: 0 0 12px rgba(0,240,255,0.5); transition: background 0.1s; }
-  #mobile-btns { position: absolute; right: 16px; bottom: 24px;
-    display: grid; grid-template-columns: repeat(2, 72px); gap: 10px;
+  #mobile-btns { position: absolute; right: 20px; bottom: 20px;
+    display: grid;
+    grid-template-columns: 60px 84px;
+    grid-template-rows: 60px 84px;
+    grid-template-areas:
+      "weapon fire"
+      "run action";
+    gap: 8px;
     pointer-events: auto; }
-  .mbtn { width: 72px; height: 72px; border-radius: 50%;
-    background: rgba(0,0,0,0.55); color: var(--hud);
+  #mbtn-fire   { grid-area: fire; }
+  #mbtn-action { grid-area: action; }
+  #mbtn-weapon { grid-area: weapon; }
+  #mbtn-run    { grid-area: run; }
+  .mbtn { border-radius: 50%;
+    background: rgba(0,0,0,0.5); color: var(--hud);
     border: 2px solid var(--neon-pink);
-    font-family: 'Courier New', monospace; font-size: 10px; font-weight: bold;
+    font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold;
     letter-spacing: 1px; text-align: center; line-height: 1.1;
     user-select: none; -webkit-user-select: none; touch-action: manipulation;
     display: flex; align-items: center; justify-content: center; padding: 4px;
-    text-shadow: 1px 1px 0 #000; }
+    text-shadow: 1px 1px 0 #000; width: 100%; height: 100%; }
+  .mbtn.fire { border-color: #ff2e2e; color: #ff6e6e; font-size: 13px; }
+  .mbtn.fire:active, .mbtn.fire.pressed { background: #ff2e2e; color: #fff; transform: scale(0.94); }
   .mbtn:active, .mbtn.pressed { background: var(--neon-pink); color: #000; transform: scale(0.94); }
-  .mbtn.small { width: 56px; height: 56px; font-size: 9px; border-color: var(--neon-cyan); color: var(--neon-cyan); }
+  .mbtn.small { font-size: 9px; border-color: var(--neon-cyan); color: var(--neon-cyan); }
   .mbtn.small:active, .mbtn.small.pressed { background: var(--neon-cyan); color: #000; }
-  #mobile-top { position: absolute; right: 16px; top: 72px;
-    display: grid; grid-template-columns: repeat(4, 56px); gap: 6px;
-    pointer-events: auto; }
+  .mbtn.small.active { background: var(--neon-cyan); color: #000; } /* sticky for run toggle */
   #rotate-hint { display: none; position: fixed; inset: 0; z-index: 100;
     background: #0a0e1a; color: var(--neon-cyan);
     align-items: center; justify-content: center; text-align: center;
@@ -143,17 +153,11 @@
 <!-- Mobile controls -->
 <div id="mobile-controls">
   <div id="joystick"><div id="joystick-knob"></div></div>
-  <div id="mobile-top">
-    <button class="mbtn small" data-key="1">FIST</button>
-    <button class="mbtn small" data-key="2">PIST</button>
-    <button class="mbtn small" data-key="3">SMG</button>
-    <button class="mbtn small" data-key="4">SHOT</button>
-  </div>
   <div id="mobile-btns">
-    <button class="mbtn" data-key="e">ENTER/<br>EXIT</button>
-    <button class="mbtn" data-key="m">MISSION</button>
-    <button class="mbtn" data-key="shift">RUN</button>
-    <button class="mbtn" data-key=" ">FIRE</button>
+    <button class="mbtn fire" id="mbtn-fire">FIRE</button>
+    <button class="mbtn" id="mbtn-action">ACTION</button>
+    <button class="mbtn small" id="mbtn-weapon">FIST</button>
+    <button class="mbtn small" id="mbtn-run">RUN</button>
   </div>
 </div>
 
@@ -339,7 +343,7 @@ for (let i = 0; i < 25; i++) {
   do { x = Math.random()*WORLD; y = Math.random()*WORLD; tries++; }
   while ((!isOnRoad(x, y) || collidesBuilding(x, y, 20)) && tries < 50);
   vehicles.push({ x, y, w: 30, h: 16, angle: Math.random()*Math.PI*2,
-    speed: 0, maxSpeed: 6 + Math.random()*3,
+    speed: 0, maxSpeed: Math.random() < 0.2 ? (2.5 + Math.random()*0.5) : (1.2 + Math.random()*0.6),
     color: carColors[Math.floor(Math.random()*carColors.length)],
     driver: null, wrecked: false, health: 100, ai: true, parked: false, turnTimer: 0 });
 }
@@ -370,7 +374,7 @@ for (let i = 0; i < 50; i++) {
   }
   if (!ok) continue;
   vehicles.push({ x, y, w: 30, h: 16, angle,
-    speed: 0, maxSpeed: 6 + Math.random()*3,
+    speed: 0, maxSpeed: 2 + Math.random()*1,
     color: carColors[Math.floor(Math.random()*carColors.length)],
     driver: null, wrecked: false, health: 100, ai: false, parked: true, turnTimer: 0 });
 }
@@ -640,11 +644,11 @@ function update() {
     const left    = (keys['a']||keys['arrowleft']);
     const right   = (keys['d']||keys['arrowright']);
 
-    const MAX_FWD = 8;
-    const MAX_REV = -4.5;
-    const ACCEL = 0.28;
-    const BRAKE = 0.5;         // strong braking when pressing opposite of motion
-    const REVERSE_ACCEL = 0.2;
+    const MAX_FWD = 3;
+    const MAX_REV = -1.8;
+    const ACCEL = 0.1;
+    const BRAKE = 0.25;        // strong braking when pressing opposite of motion
+    const REVERSE_ACCEL = 0.08;
     const COAST_DRAG = 0.99;   // slow decay when no input
     const IDLE_DRAG = 0.94;    // quick stop at very low speeds
 
@@ -664,8 +668,8 @@ function update() {
     // Needs some minimum speed to turn (cars don't rotate while parked).
     const absSpd = Math.abs(c.speed);
     if (absSpd > 0.3) {
-      const turnStrength = 0.085 * Math.min(1, absSpd / 3); // ramps up to full by speed 3
-      const dir = c.speed < 0 ? -1 : 1;                     // invert when reversing
+      const turnStrength = 0.03 * Math.min(1, absSpd / 1.5); // ramps up to full by speed 1.5
+      const dir = c.speed < 0 ? -1 : 1;                       // invert when reversing
       if (left)  c.angle -= turnStrength * dir;
       if (right) c.angle += turnStrength * dir;
     }
@@ -1083,27 +1087,74 @@ function loop() { update(); render(); requestAnimationFrame(loop); }
   if (!isTouch) return;
   mc.classList.add('active');
 
-  // Action buttons — map to keys dict
-  document.querySelectorAll('.mbtn').forEach(btn => {
-    const key = btn.dataset.key;
-    const press = (e) => {
-      e.preventDefault();
-      keys[key] = true;
-      btn.classList.add('pressed');
-    };
-    const release = (e) => {
-      e.preventDefault();
-      keys[key] = false;
-      btn.classList.remove('pressed');
-    };
-    btn.addEventListener('touchstart', press, { passive: false });
-    btn.addEventListener('touchend', release);
-    btn.addEventListener('touchcancel', release);
-    // Also support mouse for desktop testing
-    btn.addEventListener('mousedown', press);
-    btn.addEventListener('mouseup', release);
-    btn.addEventListener('mouseleave', release);
-  });
+  // Fire button — hold to shoot
+  const fireBtn = document.getElementById('mbtn-fire');
+  const firePress = (e) => { e.preventDefault(); keys[' '] = true; fireBtn.classList.add('pressed'); };
+  const fireRelease = (e) => { e.preventDefault(); keys[' '] = false; fireBtn.classList.remove('pressed'); };
+  fireBtn.addEventListener('touchstart', firePress, { passive: false });
+  fireBtn.addEventListener('touchend', fireRelease);
+  fireBtn.addEventListener('touchcancel', fireRelease);
+  fireBtn.addEventListener('mousedown', firePress);
+  fireBtn.addEventListener('mouseup', fireRelease);
+  fireBtn.addEventListener('mouseleave', fireRelease);
+
+  // ACTION button — context-aware: mission if near a '?' giver, else enter/exit vehicle
+  const actionBtn = document.getElementById('mbtn-action');
+  const actionTap = (e) => {
+    e.preventDefault();
+    actionBtn.classList.add('pressed');
+    setTimeout(() => actionBtn.classList.remove('pressed'), 120);
+    // Check for nearby mission giver first
+    let nearMission = false;
+    if (!activeMission) {
+      for (const m of missionGivers) {
+        if (!m.active) continue;
+        const dx = m.x - player.x, dy = m.y - player.y;
+        if (dx*dx + dy*dy < 30*30) { nearMission = true; break; }
+      }
+    }
+    if (nearMission) keys['m'] = true;
+    else keys['e'] = true;
+  };
+  actionBtn.addEventListener('touchstart', actionTap, { passive: false });
+  actionBtn.addEventListener('mousedown', actionTap);
+
+  // WEAPON button — cycle through owned weapons
+  const weaponBtn = document.getElementById('mbtn-weapon');
+  const weaponOrder = ['fist', 'pistol', 'smg', 'shotgun'];
+  const weaponLabel = { fist: 'FIST', pistol: 'PIST', smg: 'SMG', shotgun: 'SHOT' };
+  function updateWeaponBtn() { weaponBtn.textContent = weaponLabel[player.weapon]; }
+  const weaponTap = (e) => {
+    e.preventDefault();
+    weaponBtn.classList.add('pressed');
+    setTimeout(() => weaponBtn.classList.remove('pressed'), 120);
+    // Find next weapon the player actually owns (has ammo for, or is fist)
+    const curIdx = weaponOrder.indexOf(player.weapon);
+    for (let i = 1; i <= weaponOrder.length; i++) {
+      const next = weaponOrder[(curIdx + i) % weaponOrder.length];
+      if (next === 'fist' || player.ammo[next] > 0) {
+        player.weapon = next;
+        break;
+      }
+    }
+    updateWeaponBtn();
+  };
+  weaponBtn.addEventListener('touchstart', weaponTap, { passive: false });
+  weaponBtn.addEventListener('mousedown', weaponTap);
+  // Refresh weapon label every frame in case it changes (pickup, auto-fallback)
+  setInterval(updateWeaponBtn, 200);
+
+  // RUN toggle — tap to toggle auto-run
+  const runBtn = document.getElementById('mbtn-run');
+  let runOn = false;
+  const runTap = (e) => {
+    e.preventDefault();
+    runOn = !runOn;
+    keys['shift'] = runOn;
+    runBtn.classList.toggle('active', runOn);
+  };
+  runBtn.addEventListener('touchstart', runTap, { passive: false });
+  runBtn.addEventListener('mousedown', runTap);
 
   // Joystick — maps to w/a/s/d + sets aim angle when not moving via keys
   const stick = document.getElementById('joystick');
