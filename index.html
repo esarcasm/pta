@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>PTA 7: Browser City</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>PTA 7: Browser City v2</title>
 <style>
   :root {
     --bg: #0a0e1a; --road: #2a2e3a; --road-line: #f4d03f; --grass: #1e3a2f;
@@ -49,6 +52,59 @@
     letter-spacing: 2px; cursor: pointer; }
   .audio-btn:hover { background: var(--neon-cyan); color: #000; }
   .audio-btn.on { background: var(--neon-cyan); color: #000; }
+
+  /* Mobile controls */
+  #mobile-controls { display: none; position: fixed; inset: 0; z-index: 15;
+    pointer-events: none; }
+  #mobile-controls.active { display: block; }
+  #joystick { position: absolute; left: 24px; bottom: 24px; width: 140px; height: 140px;
+    border: 2px solid rgba(0,240,255,0.4); border-radius: 50%;
+    background: rgba(0,0,0,0.35); pointer-events: auto; touch-action: none; }
+  #joystick-knob { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px;
+    margin: -30px 0 0 -30px; border-radius: 50%;
+    background: rgba(0,240,255,0.5); border: 2px solid #00f0ff;
+    box-shadow: 0 0 12px rgba(0,240,255,0.5); transition: background 0.1s; }
+  #mobile-btns { position: absolute; right: 16px; bottom: 24px;
+    display: grid; grid-template-columns: repeat(2, 72px); gap: 10px;
+    pointer-events: auto; }
+  .mbtn { width: 72px; height: 72px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); color: var(--hud);
+    border: 2px solid var(--neon-pink);
+    font-family: 'Courier New', monospace; font-size: 10px; font-weight: bold;
+    letter-spacing: 1px; text-align: center; line-height: 1.1;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    display: flex; align-items: center; justify-content: center; padding: 4px;
+    text-shadow: 1px 1px 0 #000; }
+  .mbtn:active, .mbtn.pressed { background: var(--neon-pink); color: #000; transform: scale(0.94); }
+  .mbtn.small { width: 56px; height: 56px; font-size: 9px; border-color: var(--neon-cyan); color: var(--neon-cyan); }
+  .mbtn.small:active, .mbtn.small.pressed { background: var(--neon-cyan); color: #000; }
+  #mobile-top { position: absolute; right: 16px; top: 72px;
+    display: grid; grid-template-columns: repeat(4, 56px); gap: 6px;
+    pointer-events: auto; }
+  #rotate-hint { display: none; position: fixed; inset: 0; z-index: 100;
+    background: #0a0e1a; color: var(--neon-cyan);
+    align-items: center; justify-content: center; text-align: center;
+    font-family: 'Courier New', monospace; padding: 20px; flex-direction: column; gap: 20px; }
+  #rotate-hint .ic { font-size: 64px; animation: rot 2s infinite ease-in-out; }
+  #rotate-hint .t { font-size: 18px; letter-spacing: 3px; }
+  #rotate-hint .s { font-size: 12px; color: #888; letter-spacing: 1px; }
+  @keyframes rot { 0%,100% { transform: rotate(-90deg);} 50% { transform: rotate(0);} }
+  @media (orientation: portrait) and (max-width: 900px) {
+    #rotate-hint { display: flex; }
+  }
+  @media (max-width: 900px) {
+    #controls { display: none; } /* hide keyboard hints on mobile */
+    #title { font-size: 20px; }
+    #title .sub { font-size: 8px; }
+    #hud .row { font-size: 11px; margin-bottom: 3px; }
+    #hud .value { font-size: 14px; }
+    #stars { font-size: 16px; }
+    #minimap { width: 110px; height: 110px; bottom: auto; top: 16px; right: 16px; }
+    #mission { top: 140px; right: 16px; max-width: 200px; font-size: 10px; padding: 6px 10px; }
+    #audio-toggles { top: auto; bottom: 8px; left: 180px; transform: none; }
+    .audio-btn { padding: 3px 8px; font-size: 9px; }
+    #title { right: 140px; top: 16px; } /* move title left of minimap */
+  }
 </style>
 </head>
 <body>
@@ -83,6 +139,29 @@
   <div><span class="k">R</span> — Respawn</div>
 </div>
 <div id="msg" class="pane"></div>
+
+<!-- Mobile controls -->
+<div id="mobile-controls">
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <div id="mobile-top">
+    <button class="mbtn small" data-key="1">FIST</button>
+    <button class="mbtn small" data-key="2">PIST</button>
+    <button class="mbtn small" data-key="3">SMG</button>
+    <button class="mbtn small" data-key="4">SHOT</button>
+  </div>
+  <div id="mobile-btns">
+    <button class="mbtn" data-key="e">ENTER/<br>EXIT</button>
+    <button class="mbtn" data-key="m">MISSION</button>
+    <button class="mbtn" data-key="shift">RUN</button>
+    <button class="mbtn" data-key=" ">FIRE</button>
+  </div>
+</div>
+
+<div id="rotate-hint">
+  <div class="ic">📱</div>
+  <div class="t">ROTATE YOUR DEVICE</div>
+  <div class="s">Browser City looks best in landscape</div>
+</div>
 
 <script>
 // ============ AUDIO ============
@@ -349,7 +428,7 @@ const missionTypes = [
     peds.push(mark);
     return { desc: `Eliminate the ${g.name} boss. Marked on minimap.`, reward: 500, target: mark, check: () => mark.dead };
   }},
-  { id: 'delivery', title: 'PRETTY THEFT DELIVERY', make: () => {
+  { id: 'delivery', title: 'PETTY THEFT DELIVERY', make: () => {
     const dx = Math.random()*WORLD, dy = Math.random()*WORLD;
     return { desc: `Steal any car and deliver it to the marker. Don't wreck it.`, reward: 400,
       dropoff: { x: dx, y: dy },
@@ -547,7 +626,7 @@ function update() {
         if (dx*dx + dy*dy < 40*40) {
           if (v.ai && Math.random() < 0.3) addWanted(1);
           v.driver = 'player'; v.ai = false; v.parked = false; player.inCar = v;
-          showMsg('PRETTY THEFT AUTO', 45); sfxPickup(); break;
+          showMsg('PETTY THEFT AUTO', 45); sfxPickup(); break;
         }
       }
     }
@@ -960,6 +1039,105 @@ function render() {
 }
 
 function loop() { update(); render(); requestAnimationFrame(loop); }
+
+// ============ MOBILE CONTROLS ============
+(function setupMobileControls() {
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  const mc = document.getElementById('mobile-controls');
+  if (!isTouch) return;
+  mc.classList.add('active');
+
+  // Action buttons — map to keys dict
+  document.querySelectorAll('.mbtn').forEach(btn => {
+    const key = btn.dataset.key;
+    const press = (e) => {
+      e.preventDefault();
+      keys[key] = true;
+      btn.classList.add('pressed');
+    };
+    const release = (e) => {
+      e.preventDefault();
+      keys[key] = false;
+      btn.classList.remove('pressed');
+    };
+    btn.addEventListener('touchstart', press, { passive: false });
+    btn.addEventListener('touchend', release);
+    btn.addEventListener('touchcancel', release);
+    // Also support mouse for desktop testing
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+    btn.addEventListener('mouseleave', release);
+  });
+
+  // Joystick — maps to w/a/s/d + sets aim angle when not moving via keys
+  const stick = document.getElementById('joystick');
+  const knob = document.getElementById('joystick-knob');
+  let stickActive = false, stickId = null;
+  const stickRadius = 50;
+
+  function resetStick() {
+    stickActive = false;
+    stickId = null;
+    knob.style.transform = 'translate(0,0)';
+    keys['w'] = keys['a'] = keys['s'] = keys['d'] = false;
+  }
+
+  function handleStick(x, y) {
+    const rect = stick.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    let dx = x - cx, dy = y - cy;
+    const dist = Math.hypot(dx, dy);
+    const max = rect.width/2 - 10;
+    if (dist > max) { dx = (dx/dist)*max; dy = (dy/dist)*max; }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    // Deadzone
+    const dz = 12;
+    if (Math.hypot(dx, dy) < dz) {
+      keys['w'] = keys['a'] = keys['s'] = keys['d'] = false;
+      return;
+    }
+    // Convert to 8-directional key presses (works for both walking and driving)
+    keys['w'] = dy < -dz;
+    keys['s'] = dy > dz;
+    keys['a'] = dx < -dz;
+    keys['d'] = dx > dz;
+    // Also update the player's angle directly so aim is smooth
+    if (!player.inCar) {
+      player.angle = Math.atan2(dy, dx);
+    }
+  }
+
+  stick.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    stickActive = true; stickId = t.identifier;
+    handleStick(t.clientX, t.clientY);
+  }, { passive: false });
+
+  stick.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!stickActive) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === stickId) { handleStick(t.clientX, t.clientY); break; }
+    }
+  }, { passive: false });
+
+  const stickEnd = (e) => {
+    if (!stickActive) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === stickId) { resetStick(); break; }
+    }
+  };
+  stick.addEventListener('touchend', stickEnd);
+  stick.addEventListener('touchcancel', stickEnd);
+
+  // Prevent default touch scrolling/zooming on the canvas
+  document.addEventListener('touchmove', (e) => {
+    if (e.target.tagName === 'CANVAS') e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gesturestart', e => e.preventDefault());
+})();
 
 showMsg('WELCOME TO BROWSER CITY', 120);
 loop();
