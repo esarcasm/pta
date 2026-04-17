@@ -16,7 +16,7 @@ Built in a single HTML file. No dependencies, no build step — just open it in 
 
 ## Run it
 
-Open `gta7.html` in any modern browser. That's it.
+Open `index.html` in any modern browser. That's it.
 
 ## Credits
 
