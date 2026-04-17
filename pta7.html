@@ -42,17 +42,22 @@
   #msg.fail { color: #ff3e3e; }
   #minimap { position: fixed; bottom: 16px; right: 16px; width: 160px; height: 160px;
     background: rgba(0,0,0,0.6); border: 2px solid var(--neon-cyan); z-index: 10; }
-  #audio-toggle { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
-    background: rgba(0,0,0,0.6); color: var(--neon-cyan); border: 1px solid var(--neon-cyan);
+  #audio-toggles { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 20; }
+  .audio-btn { background: rgba(0,0,0,0.6); color: var(--neon-cyan); border: 1px solid var(--neon-cyan);
     padding: 6px 14px; font-family: 'Courier New', monospace; font-size: 11px;
-    letter-spacing: 2px; cursor: pointer; z-index: 20; }
-  #audio-toggle:hover { background: var(--neon-cyan); color: #000; }
+    letter-spacing: 2px; cursor: pointer; }
+  .audio-btn:hover { background: var(--neon-cyan); color: #000; }
+  .audio-btn.on { background: var(--neon-cyan); color: #000; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <canvas id="minimap"></canvas>
-<button id="audio-toggle">♪ SOUND: OFF</button>
+<div id="audio-toggles">
+  <button class="audio-btn" id="music-toggle">♪ MUSIC: OFF</button>
+  <button class="audio-btn" id="sfx-toggle">✦ SFX: OFF</button>
+</div>
 <div id="title" class="pane">PTA 7<div class="sub">BROWSER CITY // 1997</div></div>
 <div id="hud" class="pane">
   <div class="row"><span class="label">CASH</span><span class="value" id="cash">$0</span></div>
@@ -81,14 +86,15 @@
 
 <script>
 // ============ AUDIO ============
-let audioOn = false, actx = null, masterGain, musicGain, sfxGain;
+let musicOn = false, sfxOn = false, actx = null, masterGain, musicGain, sfxGain;
+let musicStarted = false, musicLoopRunning = false;
+let musicBarTime = 0, musicBeat = 0, musicScheduleBar = null;
 function initAudio() {
   if (actx) return;
   actx = new (window.AudioContext || window.webkitAudioContext)();
   masterGain = actx.createGain(); masterGain.gain.value = 0.35; masterGain.connect(actx.destination);
   musicGain = actx.createGain(); musicGain.gain.value = 0.5; musicGain.connect(masterGain);
   sfxGain = actx.createGain(); sfxGain.gain.value = 0.7; sfxGain.connect(masterGain);
-  startMusic();
 }
 function startMusic() {
   const bpm = 110, beat = 60/bpm;
@@ -127,16 +133,20 @@ function startMusic() {
       s.start(t);
     }
   }
-  let barTime = actx.currentTime + 0.1;
-  function loop() {
-    if (!audioOn) return;
-    while (barTime < actx.currentTime + 1) { scheduleBar(barTime); barTime += beat*4; }
-    setTimeout(loop, 200);
+  musicBarTime = actx.currentTime + 0.1;
+  musicBeat = beat;
+  musicScheduleBar = scheduleBar;
+  if (!musicLoopRunning) {
+    musicLoopRunning = true;
+    (function loop() {
+      if (!musicOn) { musicLoopRunning = false; return; }
+      while (musicBarTime < actx.currentTime + 1) { musicScheduleBar(musicBarTime); musicBarTime += musicBeat*4; }
+      setTimeout(loop, 200);
+    })();
   }
-  loop();
 }
 function sfxBeep(freq, dur, type='square', vol=0.2) {
-  if (!audioOn) return;
+  if (!sfxOn) return;
   const o = actx.createOscillator(), g = actx.createGain();
   o.type = type; o.frequency.value = freq;
   const t = actx.currentTime;
@@ -144,7 +154,7 @@ function sfxBeep(freq, dur, type='square', vol=0.2) {
   o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t+dur);
 }
 function sfxNoise(dur, vol=0.3, hp=200) {
-  if (!audioOn) return;
+  if (!sfxOn) return;
   const buf = actx.createBuffer(1, actx.sampleRate*dur, actx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
@@ -158,7 +168,7 @@ function sfxExplode() { sfxNoise(0.6, 0.6, 100); sfxBeep(60, 0.4, 'sawtooth', 0.
 function sfxPunch() { sfxBeep(120, 0.08, 'square', 0.2); }
 function sfxPickup() { sfxBeep(800, 0.08, 'square', 0.2); setTimeout(()=>sfxBeep(1200, 0.08, 'square', 0.2), 80); }
 function sfxSiren() {
-  if (!audioOn) return;
+  if (!sfxOn) return;
   const o = actx.createOscillator(), g = actx.createGain();
   o.type = 'sine'; g.gain.value = 0.08;
   const t = actx.currentTime;
@@ -167,10 +177,21 @@ function sfxSiren() {
   o.frequency.linearRampToValueAtTime(600, t+0.5);
   o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t+0.5);
 }
-document.getElementById('audio-toggle').addEventListener('click', () => {
-  initAudio(); audioOn = !audioOn;
-  document.getElementById('audio-toggle').textContent = audioOn ? '♪ SOUND: ON' : '♪ SOUND: OFF';
-  if (audioOn) actx.resume();
+document.getElementById('music-toggle').addEventListener('click', () => {
+  initAudio();
+  musicOn = !musicOn;
+  const btn = document.getElementById('music-toggle');
+  btn.textContent = musicOn ? '♪ MUSIC: ON' : '♪ MUSIC: OFF';
+  btn.classList.toggle('on', musicOn);
+  if (musicOn) { actx.resume(); startMusic(); }
+});
+document.getElementById('sfx-toggle').addEventListener('click', () => {
+  initAudio();
+  sfxOn = !sfxOn;
+  const btn = document.getElementById('sfx-toggle');
+  btn.textContent = sfxOn ? '✦ SFX: ON' : '✦ SFX: OFF';
+  btn.classList.toggle('on', sfxOn);
+  if (sfxOn) actx.resume();
 });
 
 // ============ GAME ============
@@ -233,14 +254,46 @@ const player = {
 
 const vehicles = [];
 const carColors = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c','#ecf0f1','#34495e'];
-for (let i = 0; i < 40; i++) {
+// Moving traffic
+for (let i = 0; i < 25; i++) {
   let x, y, tries = 0;
   do { x = Math.random()*WORLD; y = Math.random()*WORLD; tries++; }
   while ((!isOnRoad(x, y) || collidesBuilding(x, y, 20)) && tries < 50);
   vehicles.push({ x, y, w: 30, h: 16, angle: Math.random()*Math.PI*2,
     speed: 0, maxSpeed: 6 + Math.random()*3,
     color: carColors[Math.floor(Math.random()*carColors.length)],
-    driver: null, wrecked: false, health: 100, ai: true, turnTimer: 0 });
+    driver: null, wrecked: false, health: 100, ai: true, parked: false, turnTimer: 0 });
+}
+// Parked cars: sit just inside the road along block edges, aligned with street flow
+for (let i = 0; i < 50; i++) {
+  let x, y, angle, tries = 0, ok = false;
+  while (!ok && tries < 80) {
+    tries++;
+    // Pick a random block corner and an edge (N/S/E/W)
+    const bx = Math.floor(Math.random() * (WORLD/BLOCK)) * BLOCK;
+    const by = Math.floor(Math.random() * (WORLD/BLOCK)) * BLOCK;
+    const edge = Math.floor(Math.random()*4);
+    const along = 40 + Math.random()*(BLOCK - 80);
+    if (edge === 0)      { x = bx + along;        y = by + ROAD_W/2 + 18; angle = 0; }            // top edge, horizontal road, park below road line
+    else if (edge === 1) { x = bx + along;        y = by + BLOCK - ROAD_W/2 - 18; angle = Math.PI; } // bottom edge
+    else if (edge === 2) { x = bx + ROAD_W/2 + 18; y = by + along;        angle = Math.PI/2; }    // left edge
+    else                 { x = bx + BLOCK - ROAD_W/2 - 18; y = by + along; angle = -Math.PI/2; }  // right edge
+    if (x < 20 || x > WORLD-20 || y < 20 || y > WORLD-20) continue;
+    if (collidesBuilding(x, y, 18)) continue;
+    // Also avoid stacking parked cars
+    let clash = false;
+    for (const v of vehicles) {
+      const dx = v.x - x, dy = v.y - y;
+      if (dx*dx + dy*dy < 50*50) { clash = true; break; }
+    }
+    if (clash) continue;
+    ok = true;
+  }
+  if (!ok) continue;
+  vehicles.push({ x, y, w: 30, h: 16, angle,
+    speed: 0, maxSpeed: 6 + Math.random()*3,
+    color: carColors[Math.floor(Math.random()*carColors.length)],
+    driver: null, wrecked: false, health: 100, ai: false, parked: true, turnTimer: 0 });
 }
 
 const peds = [];
@@ -493,7 +546,7 @@ function update() {
         const dx = v.x - player.x, dy = v.y - player.y;
         if (dx*dx + dy*dy < 40*40) {
           if (v.ai && Math.random() < 0.3) addWanted(1);
-          v.driver = 'player'; v.ai = false; player.inCar = v;
+          v.driver = 'player'; v.ai = false; v.parked = false; player.inCar = v;
           showMsg('PRETTY THEFT AUTO', 45); sfxPickup(); break;
         }
       }
